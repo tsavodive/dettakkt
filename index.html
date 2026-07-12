@@ -219,9 +219,14 @@ svg { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round
 .cell-n { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--ink); }
 .dow-0 { color: #C96B77; } .dow-6 { color: #5E86BE; }
 .cell-dot { font-size: 8px; line-height: 6px; color: var(--muted); letter-spacing: 1px; height: 6px; }
+.cell-n.holi { color: #C96B77; }
+.cell-holi { font-size: 8px; line-height: 9px; color: #C96B77; font-weight: 600; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
+.cell.sel .cell-n.holi { color: #fff; }
+.hol-label { margin-top: 3px; font-size: 12px; font-weight: 700; color: #C96B77; letter-spacing: -.2px; }
 .cell.today { border-color: var(--accent); }
 .cell.sel { background: var(--accent); }
-.cell.sel .cell-n, .cell.sel .cell-dot { color: #fff; }
+.cell.sel .cell-n, .cell.sel .cell-dot, .cell.sel .cell-holi { color: #fff; }
 .cal-today { margin-top: 14px; width: 100%; background: var(--warm); border: 1px solid var(--line);
   border-radius: 12px; font: inherit; font-weight: 700; font-size: 14px; padding: 12px; cursor: pointer; color: var(--ink); }
 .cal-today:active { background: var(--accent); color: #fff; }
@@ -333,6 +338,31 @@ const CATS = [
   { key: "wish", label: "✨ 안 해도 되지만 하면 좋은 일", hint: "하면 좋음", color: "#3E9A95", tint: "#E1F0EE" }
 ];
 const GOAL_C = "#34617A", GOAL_TINT = "#E4EDF2";
+
+/* 한국 공휴일 (2026~2028). 인사혁신처/월력요항 기준. 제헌절 재지정·임시공휴일·선거일 등은
+   정부 고시에 따라 바뀔 수 있어 참고용입니다. */
+const HOLIDAYS = {
+  "2026-01-01": "신정", "2026-02-16": "설날 연휴", "2026-02-17": "설날", "2026-02-18": "설날 연휴",
+  "2026-03-01": "삼일절", "2026-03-02": "삼일절 대체휴일", "2026-05-05": "어린이날",
+  "2026-05-24": "부처님오신날", "2026-05-25": "부처님오신날 대체휴일", "2026-06-03": "지방선거일",
+  "2026-06-06": "현충일", "2026-07-17": "제헌절", "2026-08-15": "광복절", "2026-08-17": "광복절 대체휴일",
+  "2026-09-24": "추석 연휴", "2026-09-25": "추석", "2026-09-26": "추석 연휴",
+  "2026-10-03": "개천절", "2026-10-05": "개천절 대체휴일", "2026-10-09": "한글날", "2026-12-25": "성탄절",
+
+  "2027-01-01": "신정", "2027-02-06": "설날 연휴", "2027-02-07": "설날", "2027-02-08": "설날 연휴",
+  "2027-02-09": "설날 대체휴일", "2027-03-01": "삼일절", "2027-05-05": "어린이날", "2027-05-13": "부처님오신날",
+  "2027-06-06": "현충일", "2027-07-17": "제헌절", "2027-07-19": "제헌절 대체휴일",
+  "2027-08-15": "광복절", "2027-08-16": "광복절 대체휴일", "2027-09-14": "추석 연휴", "2027-09-15": "추석",
+  "2027-09-16": "추석 연휴", "2027-10-03": "개천절", "2027-10-04": "개천절 대체휴일",
+  "2027-10-09": "한글날", "2027-10-11": "한글날 대체휴일", "2027-12-25": "성탄절", "2027-12-27": "성탄절 대체휴일",
+
+  "2028-01-01": "신정", "2028-01-26": "설날 연휴", "2028-01-27": "설날", "2028-01-28": "설날 연휴",
+  "2028-03-01": "삼일절", "2028-04-12": "국회의원선거일", "2028-05-02": "부처님오신날", "2028-05-05": "어린이날",
+  "2028-06-06": "현충일", "2028-07-17": "제헌절", "2028-08-15": "광복절",
+  "2028-10-02": "추석 연휴", "2028-10-03": "추석·개천절", "2028-10-04": "추석 연휴", "2028-10-05": "대체휴일",
+  "2028-10-09": "한글날", "2028-12-25": "성탄절"
+};
+const holidayName = function (ds) { return HOLIDAYS[ds] || null; };
 const catOf = function (k) { return CATS.filter(function (c) { return c.key === k; })[0]; };
 const LOG_ICON = { created: "＋", carried: "→", progress: "▲", transformed_from: "⑂", transformed_to: "⑂", category: "◇", done: "✓", reopen: "↺" };
 
@@ -458,7 +488,11 @@ function renderHeader() {
   const calBtn = h("button", { class: "tool-btn", "aria-label": "달력 열기", onClick: openCal }, icon("cal", 14), "달력");
   const rel = h("button", { class: "rel" + (isToday ? " is-today" : ""), onClick: function () { jumpTo(today()); } },
     relLabel(state.view) + (isToday ? "" : " · 오늘로"));
-  hdr.appendChild(h("div", { class: "date" }, dateMain, h("div", { class: "date-tools" }, calBtn, rel)));
+  const hol = holidayName(state.view);
+  const dateBox = h("div", { class: "date" }, dateMain);
+  if (hol) dateBox.appendChild(h("div", { class: "hol-label" }, hol));
+  dateBox.appendChild(h("div", { class: "date-tools" }, calBtn, rel));
+  hdr.appendChild(dateBox);
   hdr.appendChild(h("button", { class: "nav", "aria-label": "다음날", onClick: goNext }, icon("cright", 26)));
 }
 
@@ -764,9 +798,11 @@ function openCal() {
       const ds = fmt(new Date(ym.y, ym.m, d));
       const cnt = countFor(ds);
       const dow = new Date(ym.y, ym.m, d).getDay();
+      const hol = holidayName(ds);
       const cell = h("button", { class: "cell" + (ds === state.view ? " sel" : "") + (ds === today() ? " today" : ""), onClick: function () { jumpTo(ds); clearOverlay(); } },
-        h("span", { class: "cell-n dow-" + dow }, String(d)),
-        cnt > 0 ? h("span", { class: "cell-dot" }, cnt > 4 ? "•••" : "•".repeat(cnt)) : h("span", { class: "cell-dot" })
+        h("span", { class: "cell-n dow-" + dow + (hol ? " holi" : "") }, String(d)),
+        hol ? h("span", { class: "cell-holi" }, hol)
+            : (cnt > 0 ? h("span", { class: "cell-dot" }, cnt > 4 ? "•••" : "•".repeat(cnt)) : h("span", { class: "cell-dot" }))
       );
       grid.appendChild(cell);
     });
