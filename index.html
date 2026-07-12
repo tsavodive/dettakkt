@@ -394,7 +394,15 @@ function visibleOn(t, D) {
     if (t.done && t.doneDate && t.doneDate < D) return false;
     return true;
   }
-  return t.date === D;
+  if (t.done) return (t.doneDate || t.date) === D;   // 완료: 완료한 날에만
+  if (t.transformed) return t.date === D;             // 다른 일로 바뀜: 그 날에만
+  return D >= t.date;                                 // 미완료: 그 날부터 이후로 계속 따라옴
+}
+/* 달력 개수용: 미완료 일은 '오늘(현재 날짜)'에만 세어 미래 날짜가 전부 채워지지 않게 함 */
+function anchoredOn(t, ds) {
+  if (t.longTerm) return visibleOn(t, ds);
+  if (t.done) return (t.doneDate || t.date) === ds;
+  return t.date === ds;
 }
 function goalFor(D) {
   let best = null;
@@ -443,7 +451,7 @@ function transform(id, newTitle) {
   };
   state.tasks = state.tasks.map(function (t) {
     if (t.id !== id) return t;
-    return Object.assign({}, t, { transformed: true, childId: child.id, done: false,
+    return Object.assign({}, t, { transformed: true, childId: child.id, done: false, date: state.view,
       logs: t.logs.concat({ date: state.view, type: "transformed_to", text: "‘" + nt + "’(으)로 변함" }) });
   }).concat(child);
   commit();
@@ -824,7 +832,7 @@ function openDetail(id) {
 function openCal() {
   const vd = parse(state.view);
   let ym = { y: vd.getFullYear(), m: vd.getMonth() };
-  function countFor(ds) { let n = 0; state.tasks.forEach(function (t) { if (visibleOn(t, ds)) n++; }); return n; }
+  function countFor(ds) { let n = 0; state.tasks.forEach(function (t) { if (anchoredOn(t, ds)) n++; }); return n; }
   function build() {
     const ov = document.getElementById("ov"); ov.innerHTML = "";
     const first = new Date(ym.y, ym.m, 1);
@@ -911,6 +919,21 @@ function autoCarryOverdue() {
 autoCarryOverdue();
 renderHeader();
 renderBoard();
+
+/* 자정이 지나 앱을 다시 볼 때(백그라운드에서 복귀 등) 날짜를 갱신하고 이월을 다시 처리 */
+let lastToday = today();
+function refreshDay() {
+  const T = today();
+  if (T !== lastToday) {
+    autoCarryOverdue();
+    if (state.view === lastToday) { state.view = T; state.dir = 0; }
+    lastToday = T;
+    renderHeader();
+    renderBoard();
+  }
+}
+document.addEventListener("visibilitychange", function () { if (!document.hidden) refreshDay(); });
+window.addEventListener("focus", refreshDay);
 
 /* ---------- service worker ---------- */
 if ("serviceWorker" in navigator) {
