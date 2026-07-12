@@ -839,12 +839,13 @@ function autoCarryOverdue() {
   const T = today();
   let changed = false;
   state.tasks = state.tasks.map(function (t) {
-    if (t.category === "today" && !t.done && !t.transformed && !t.longTerm && t.date < T) {
+    if (!t.done && !t.transformed && !t.longTerm && t.date < T) {
       changed = true;
-      return Object.assign({}, t, {
-        date: T,
-        logs: t.logs.concat({ date: T, type: "carried", text: mdLabel(t.date) + "에서 넘어옴 (자동)" })
-      });
+      const last = t.logs[t.logs.length - 1];
+      const alreadyAuto = last && last.type === "carried" && / \(자동\)$/.test(last.text);
+      const logs = alreadyAuto ? t.logs
+        : t.logs.concat({ date: T, type: "carried", text: mdLabel(t.date) + "에서 넘어옴 (자동)" });
+      return Object.assign({}, t, { date: T, logs: logs });
     }
     return t;
   });
