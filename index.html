@@ -92,21 +92,21 @@ svg { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round
 .tasks { display: flex; flex-direction: column; gap: 6px; position: relative; }
 .empty { font-size: 13px; color: var(--muted); padding: 8px 4px 10px; opacity: .8; cursor: pointer; }
 .empty:active { color: var(--ink); }
-.task { display: flex; align-items: stretch; gap: 10px; background: var(--card);
+.task { display: flex; align-items: center; gap: 10px; background: var(--card);
   border: 1px solid var(--line); border-radius: 13px; padding: 11px 12px; transition: opacity .2s, background .2s; }
 .task.done { opacity: .5; }
 .task.morphed { background: repeating-linear-gradient(135deg, var(--card), var(--card) 7px, #00000005 7px, #00000005 14px); }
 .check { flex: none; width: 22px; height: 22px; border-radius: 7px; border: 2px solid var(--c);
-  background: none; display: grid; place-items: center; cursor: pointer; color: #fff; margin-top: 1px; }
+  background: none; display: grid; place-items: center; cursor: pointer; color: #fff; }
 .task.done .check { background: var(--c); }
 .task-body { flex: 1; text-align: left; background: none; border: none; cursor: pointer;
-  display: flex; flex-direction: column; gap: 5px; padding: 0; position: relative; color: var(--ink); }
+  display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 0; position: relative; color: var(--ink); min-width: 0; }
 .task-body.static { cursor: default; justify-content: center; }
 .thread { position: absolute; left: -10px; top: 2px; bottom: 2px; width: 2px; border-radius: 2px;
   background: repeating-linear-gradient(var(--c), var(--c) 3px, transparent 3px, transparent 6px); opacity: .55; }
-.task-title { font-size: 15.5px; font-weight: 550; line-height: 1.35; letter-spacing: -.2px; word-break: break-word; padding-top: 3px; }
+.task-title { flex: 1; min-width: 0; font-size: 15.5px; font-weight: 550; line-height: 1.35; letter-spacing: -.2px; word-break: break-word; }
 .task.done .task-title { text-decoration: line-through; text-decoration-color: var(--muted); }
-.badges { display: flex; flex-wrap: wrap; gap: 5px; }
+.badges { display: flex; flex-wrap: wrap; gap: 5px; flex: none; justify-content: flex-end; }
 .badge { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 650; padding: 2px 7px 2px 5px; border-radius: 999px; }
 .badge svg { width: 11px; height: 11px; stroke-width: 2.6; }
 .b-carry { background: #E9EEF6; color: #4E6E9E; }
@@ -435,8 +435,10 @@ function toggleDone(id) {
 function carry(id) {
   state.tasks = state.tasks.map(function (t) {
     if (t.id !== id) return t;
-    return Object.assign({}, t, { date: fmt(addDays(parse(t.date), 1)),
-      logs: t.logs.concat({ date: t.date, type: "carried", text: mdLabel(t.date) + "에서 넘김" }) });
+    const next = fmt(addDays(parse(t.date), 1));
+    const catNote = t.category !== "today" ? " · 오늘 안에" : "";
+    return Object.assign({}, t, { date: next, category: "today",
+      logs: t.logs.concat({ date: t.date, type: "carried", text: mdLabel(t.date) + "에서 내일로 넘김" + catNote }) });
   });
   commit();
 }
