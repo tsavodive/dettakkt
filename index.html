@@ -3,8 +3,20 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-<title>됐다끝 dettakkt</title>
+<title>됐다끝 dettakkt - 시간관리를 위한 웹앱</title>
+<meta name="description" content="됐다끝 dettakkt - 하루 단위로 할 일을 긴급도별로 관리하고, 할 일이 변해온 이력까지 기록하는 시간관리 웹앱. 설치·오프라인 사용이 가능합니다." />
 <meta name="theme-color" content="#F6F5F2" />
+<link rel="canonical" href="https://tsavodive.github.io/dettakkt/" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="됐다끝 dettakkt - 시간관리를 위한 웹앱" />
+<meta property="og:description" content="하루 단위로 할 일을 긴급도별로 관리하고, 할 일이 변해온 이력까지 기록하는 시간관리 웹앱." />
+<meta property="og:url" content="https://tsavodive.github.io/dettakkt/" />
+<meta property="og:image" content="https://tsavodive.github.io/dettakkt/icon-512.png?v=2" />
+<meta property="og:locale" content="ko_KR" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="됐다끝 dettakkt - 시간관리를 위한 웹앱" />
+<meta name="twitter:description" content="하루 단위로 할 일을 긴급도별로 관리하고, 할 일이 변해온 이력까지 기록하는 시간관리 웹앱." />
+<meta name="twitter:image" content="https://tsavodive.github.io/dettakkt/icon-512.png?v=2" />
 <link rel="manifest" href="./manifest.webmanifest" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -377,10 +389,31 @@ const catOf = function (k) { return CATS.filter(function (c) { return c.key === 
 const LOG_ICON = { created: "＋", carried: "→", progress: "▲", transformed_from: "⑂", transformed_to: "⑂", category: "◇", done: "✓", reopen: "↺" };
 
 /* ---------- state ---------- */
+const CAT_KEYS = CATS.map(function (c) { return c.key; });
+function normalizeTask(x, i) {
+  x = x || {};
+  const date = typeof x.date === "string" ? x.date : today();
+  const logs = Array.isArray(x.logs) ? x.logs.filter(function (l) { return l && typeof l.date === "string"; }) : [];
+  return {
+    id: x.id || uid(),
+    title: typeof x.title === "string" ? x.title : "",
+    category: CAT_KEYS.indexOf(x.category) >= 0 ? x.category : "today",
+    date: date,
+    createdDate: typeof x.createdDate === "string" ? x.createdDate : date,
+    done: !!x.done,
+    doneDate: typeof x.doneDate === "string" ? x.doneDate : null,
+    longTerm: !!x.longTerm,
+    parentId: x.parentId || null,
+    childId: x.childId || null,
+    transformed: !!x.transformed,
+    order: typeof x.order === "number" ? x.order : (Date.now() + i),
+    logs: logs.length ? logs : [{ date: date, type: "created", text: "만듦" }]
+  };
+}
 const _d = loadData();
 const state = {
-  tasks: _d.tasks.map(function (x, i) { return x.order === undefined ? Object.assign({}, x, { order: i }) : x; }),
-  goals: _d.goals,
+  tasks: _d.tasks.map(normalizeTask),
+  goals: Array.isArray(_d.goals) ? _d.goals.filter(function (g) { return g && typeof g.date === "string"; }) : [],
   view: today(),
   dir: 0,
   collapsed: {}, expanded: {}, reorder: {},
@@ -512,7 +545,7 @@ function importData(file) {
       if (!tasks) { alert("이 파일에서 할 일 데이터를 찾지 못했어요. 올바른 백업 파일인지 확인해 주세요."); return; }
       const goals = Array.isArray(data.goals) ? data.goals : [];
       if (!window.confirm("불러오면 지금 이 기기의 데이터가 파일 내용(할 일 " + tasks.length + "개)으로 덮어써집니다. 계속할까요?")) return;
-      state.tasks = tasks.map(function (x, i) { return x.order === undefined ? Object.assign({}, x, { order: i }) : x; });
+      state.tasks = tasks.map(normalizeTask);
       state.goals = goals;
       saveData();
       state.adding = null; state.goalEditing = false;
@@ -620,7 +653,8 @@ function renderGoal() {
 
 function renderCategory(c) {
   const catTasks = catVisible(c.key);
-  const list = catTasks.slice().sort(function (a, b) { return a.done !== b.done ? (a.done ? 1 : -1) : (a.order || 0) - (b.order || 0); });
+  const sink = function (t) { return (t.done || t.transformed) ? 1 : 0; };
+  const list = catTasks.slice().sort(function (a, b) { return sink(a) !== sink(b) ? sink(a) - sink(b) : (a.order || 0) - (b.order || 0); });
   const ordered = catTasks.slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
   const isCol = !!state.collapsed[c.key];
   const reMode = !!state.reorder[c.key];
@@ -747,12 +781,14 @@ function clearOverlay() { document.getElementById("ov").innerHTML = ""; }
 
 function openDetail(id) {
   let mode = null; // transform | progress | rename | confirmDel
+  const ov = document.getElementById("ov");
+  ov.innerHTML = "";
+  const scrim = h("div", { class: "scrim", onClick: clearOverlay });
+  ov.appendChild(scrim);
   function build() {
     const t = state.tasks.filter(function (x) { return x.id === id; })[0];
     if (!t) { clearOverlay(); return; }
-    const c = catOf(t.category);
-    const ov = document.getElementById("ov");
-    ov.innerHTML = "";
+    const c = catOf(t.category) || CATS[0];
     const sheet = h("div", { class: "sheet" });
     sheet.style.setProperty("--c", c.color); sheet.style.setProperty("--tint", c.tint);
     sheet.addEventListener("click", function (e) { e.stopPropagation(); });
@@ -825,8 +861,8 @@ function openDetail(id) {
       sheet.appendChild(h("button", { class: "del", onClick: function () { mode = "confirmDel"; build(); } }, icon("trash", 15), "삭제"));
     }
 
-    const scrim = h("div", { class: "scrim", onClick: clearOverlay }, sheet);
-    ov.appendChild(scrim);
+    scrim.innerHTML = "";
+    scrim.appendChild(sheet);
   }
   build();
 }
@@ -883,10 +919,14 @@ function openCal() {
 (function () {
   const wrap = document.getElementById("boardwrap");
   let start = null;
-  wrap.addEventListener("touchstart", function (e) { const t = e.touches[0]; start = { x: t.clientX, y: t.clientY }; }, { passive: true });
+  wrap.addEventListener("touchstart", function (e) {
+    if (document.getElementById("ov").childNodes.length) { start = null; return; }
+    const t = e.touches && e.touches[0]; if (!t) { start = null; return; }
+    start = { x: t.clientX, y: t.clientY };
+  }, { passive: true });
   wrap.addEventListener("touchend", function (e) {
     if (!start) return;
-    const t = e.changedTouches[0];
+    const t = e.changedTouches && e.changedTouches[0]; if (!t) { start = null; return; }
     const dx = t.clientX - start.x, dy = t.clientY - start.y;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.3) { dx < 0 ? goNext() : goPrev(); }
     start = null;
