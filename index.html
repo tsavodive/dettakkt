@@ -109,13 +109,12 @@ svg { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round
 .task.done { opacity: .5; }
 .task.morphed { background: repeating-linear-gradient(135deg, var(--card), var(--card) 7px, #00000005 7px, #00000005 14px); }
 .check { flex: none; width: 22px; height: 22px; border-radius: 7px; border: 2px solid var(--c);
-  background: none; display: grid; place-items: center; cursor: pointer; color: #fff; }
+  background: none; display: grid; place-items: center; cursor: pointer; color: #fff; padding: 0; }
+.check.half { background: linear-gradient(to top, var(--c) 55%, transparent 55%); }
 .task.done .check { background: var(--c); }
 .task-body { flex: 1; text-align: left; background: none; border: none; cursor: pointer;
   display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 0; position: relative; color: var(--ink); min-width: 0; }
 .task-body.static { cursor: default; justify-content: center; }
-.thread { position: absolute; left: -10px; top: 2px; bottom: 2px; width: 2px; border-radius: 2px;
-  background: repeating-linear-gradient(var(--c), var(--c) 3px, transparent 3px, transparent 6px); opacity: .55; }
 .task-title { flex: 1; min-width: 0; font-size: 15.5px; font-weight: 550; line-height: 1.35; letter-spacing: -.2px; word-break: break-word; }
 .task.done .task-title { text-decoration: line-through; text-decoration-color: var(--muted); }
 .badges { display: flex; flex-wrap: wrap; gap: 5px; flex: none; justify-content: flex-end; }
@@ -591,15 +590,13 @@ function taskRowNormal(t) {
   const carried = t.logs.some(function (l) { return l.type === "carried"; }) && t.date === state.view && !t.longTerm;
   const progressCount = t.logs.filter(function (l) { return l.type === "progress"; }).length;
   const fromParent = t.parentId && t.logs.some(function (l) { return l.type === "transformed_from"; });
-  const hasStory = t.logs.length > 1;
-  const check = h("button", { class: "check", "aria-label": "완료", onClick: function (e) { e.stopPropagation(); toggleDone(t.id); } }, t.done ? icon("check", 13) : null);
+  const check = h("button", { class: "check" + (!t.done && t.longTerm ? " half" : ""), "aria-label": "완료", onClick: function (e) { e.stopPropagation(); toggleDone(t.id); } }, t.done ? icon("check", 13) : null);
   const badges = h("span", { class: "badges" });
   if (carried) badges.appendChild(badge("b-carry", "cornerUR", "넘어옴"));
   if (fromParent) badges.appendChild(badge("b-morph", "cornerDR", "이어짐"));
   if (t.transformed) badges.appendChild(badge("b-old", "branch", "변함"));
   if (t.longTerm) badges.appendChild(badge("b-long", "trend", "진행 " + progressCount));
   const body = h("button", { class: "task-body", onClick: function () { openDetail(t.id); } },
-    hasStory ? h("span", { class: "thread" }) : null,
     h("span", { class: "task-title" }, t.title),
     badges
   );
