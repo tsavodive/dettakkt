@@ -168,7 +168,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round
   padding: 9px 15px; border-radius: 11px; cursor: pointer; }
 .backup-btn svg { width: 15px; height: 15px; opacity: .75; }
 .backup-btn:active { background: var(--warm); border-color: var(--accent); }
-.backup-note { text-align: center; font-size: 11px; color: var(--muted); opacity: .85; line-height: 1.5; padding: 0 20px; }
+.backup-note { text-align: center; font-size: 11.5px; color: var(--muted); opacity: .85; line-height: 1.6; letter-spacing: .2px; padding: 0 20px; }
 
 .scrim { position: fixed; inset: 0; background: rgba(28, 26, 22, 0.55); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
   z-index: 50; display: flex; align-items: flex-end; justify-content: center; animation: fade .2s; }
@@ -459,8 +459,15 @@ function toggleDone(id) {
   state.tasks = state.tasks.map(function (t) {
     if (t.id !== id) return t;
     const nd = !t.done;
-    return Object.assign({}, t, { done: nd, doneDate: nd ? state.view : null,
-      logs: t.logs.concat({ date: state.view, type: nd ? "done" : "reopen", text: nd ? "완료" : "다시 열기" }) });
+    let logs;
+    if (nd) {
+      logs = t.logs.concat({ date: state.view, type: "done", text: "완료" });
+    } else {
+      // 완료를 되돌리면 '완료' 기록을 지워 이력을 깔끔하게 유지
+      logs = t.logs.slice();
+      for (let i = logs.length - 1; i >= 0; i--) { if (logs[i].type === "done") { logs.splice(i, 1); break; } }
+    }
+    return Object.assign({}, t, { done: nd, doneDate: nd ? state.view : null, logs: logs });
   });
   commit();
 }
@@ -468,9 +475,11 @@ function carry(id) {
   state.tasks = state.tasks.map(function (t) {
     if (t.id !== id) return t;
     const next = fmt(addDays(parse(t.date), 1));
-    const catNote = t.category !== "today" ? " · 오늘 안에" : "";
-    return Object.assign({}, t, { date: next, category: "today",
-      logs: t.logs.concat({ date: t.date, type: "carried", text: mdLabel(t.date) + "에서 내일로 넘김" + catNote }) });
+    // 단순히 다음 날로 미루는 건 기록하지 않고, 덜 급한 분류에서 '오늘 안에'로 옮겨올 때만 남김
+    const logs = t.category !== "today"
+      ? t.logs.concat({ date: state.view, type: "category", text: "‘오늘 안에’로 옮김" })
+      : t.logs;
+    return Object.assign({}, t, { date: next, category: "today", logs: logs });
   });
   commit();
 }
@@ -587,7 +596,7 @@ function renderHeader() {
 function badge(cls, ic, text) { return h("span", { class: "badge " + cls }, icon(ic, 11), text); }
 
 function taskRowNormal(t) {
-  const carried = t.logs.some(function (l) { return l.type === "carried"; }) && t.date === state.view && !t.longTerm;
+  const carried = !t.longTerm && t.createdDate < t.date;
   const progressCount = t.logs.filter(function (l) { return l.type === "progress"; }).length;
   const fromParent = t.parentId && t.logs.some(function (l) { return l.type === "transformed_from"; });
   const check = h("button", { class: "check" + (!t.done && t.longTerm ? " half" : ""), "aria-label": "완료", onClick: function (e) { e.stopPropagation(); toggleDone(t.id); } }, t.done ? icon("check", 13) : null);
@@ -697,7 +706,7 @@ function renderCategory(c) {
       if (list.length === 0 && state.adding !== c.key) tasksEl.appendChild(h("div", { class: "empty", onClick: function () { state.collapsed[c.key] = false; state.adding = c.key; renderBoard(); } }, "여기를 눌러 적어 두세요"));
       shown.forEach(function (t) { tasksEl.appendChild(taskRowNormal(t)); });
       if (!showAll && hidden > 0) tasksEl.appendChild(h("button", { class: "show-more", onClick: function () { state.expanded[c.key] = true; renderBoard(); } }, "▾ " + hidden + "개 더 보기"));
-      if (showAll && list.length > PREVIEW) tasksEl.appendChild(h("button", { class: "show-more", onClick: function () { state.expanded[c.key] = false; renderBoard(); } }, "▴ 접기"));
+      if (showAll && list.length > PREVIEW) tasksEl.appendChild(h("button", { class: "show-more", onClick: function () { state.expanded[c.key] = false; renderBoard(); } }, "▴ 덜 보기"));
       sec.appendChild(tasksEl);
     }
   }
@@ -719,7 +728,10 @@ function renderBoard() {
     h("button", { class: "backup-btn", onClick: function () { fileInput.click(); } }, icon("upload", 15), "불러오기"),
     fileInput
   ));
-  board.appendChild(h("div", { class: "backup-note" }, "데이터는 이 기기에만 저장돼요. 파일로 백업하거나 다른 기기로 옮길 수 있어요."));
+  board.appendChild(h("div", { class: "backup-note" },
+    h("div", null, "데이터는 이 기기에만 저장돼요."),
+    h("div", null, "파일로 백업하거나 다른 기기로 옮길 수 있어요.")
+  ));
 
   state.dir = 0;
   if (state.adding) { const ai = document.getElementById("add-input"); if (ai) { ai.focus(); ai.setSelectionRange(ai.value.length, ai.value.length); } }
@@ -935,19 +947,15 @@ document.addEventListener("keydown", function (e) {
   if (e.key === "ArrowRight") goNext();
 });
 
-/* ---------- auto-carry overdue "오늘 안에" tasks ---------- */
-/* 지나간 날의 미완료 '오늘 안에' 할 일을 실제 오늘로 끌어옵니다. 이력은 그대로 보존. */
+/* ---------- auto-carry overdue tasks ---------- */
+/* 지나간 날의 미완료 할 일을 오늘로 끌어옵니다. 단순 이월은 이력에 남기지 않습니다. */
 function autoCarryOverdue() {
   const T = today();
   let changed = false;
   state.tasks = state.tasks.map(function (t) {
     if (!t.done && !t.transformed && !t.longTerm && t.date < T) {
       changed = true;
-      const last = t.logs[t.logs.length - 1];
-      const alreadyAuto = last && last.type === "carried" && / \(자동\)$/.test(last.text);
-      const logs = alreadyAuto ? t.logs
-        : t.logs.concat({ date: T, type: "carried", text: mdLabel(t.date) + "에서 넘어옴 (자동)" });
-      return Object.assign({}, t, { date: T, logs: logs });
+      return Object.assign({}, t, { date: T });
     }
     return t;
   });
