@@ -1,5 +1,5 @@
 /* 캐시 이름의 버전을 올리면(예: v1 -> v2) 오래된 캐시를 정리하고 새로 받습니다. */
-const CACHE = "daily-tasks-v15";
+const CACHE = "daily-tasks-v16";
 const ASSETS = [
   "./",
   "./index.html",

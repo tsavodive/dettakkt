@@ -422,7 +422,7 @@ const state = {
 /* ---------- pure helpers ---------- */
 function visibleOn(t, D) {
   if (t.longTerm) {
-    if (t.createdDate > D) return false;
+    if (t.date > D) return false;                     // 미룬 경우 그 날부터 보임
     if (t.done && t.doneDate && t.doneDate < D) return false;
     return true;
   }
@@ -820,7 +820,7 @@ function openDetail(id) {
     const acts = h("div", { class: "acts" });
     acts.appendChild(h("button", { class: "act" + (t.done ? " on" : ""), onClick: function () { toggleDone(t.id); build(); } }, t.done ? "↩️ 아직이에요" : "✅ 다 했어요"));
     acts.appendChild(h("button", { class: "act", onClick: function () { mode = "progress"; build(); } }, "▶️ 시작은 했어요"));
-    if (!t.longTerm) acts.appendChild(h("button", { class: "act", onClick: function () { carry(t.id); clearOverlay(); } }, "➡️ 내일 할래요"));
+    acts.appendChild(h("button", { class: "act", onClick: function () { carry(t.id); clearOverlay(); } }, "➡️ 내일 할래요"));
     acts.appendChild(h("button", { class: "act", onClick: function () { mode = "transform"; build(); } }, "🔀 다른 일로 바뀌었어요"));
     sheet.appendChild(acts);
 
